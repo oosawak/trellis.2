@@ -332,3 +332,78 @@ If you find this model useful for your research, please cite our work:
     year={2025}
 }
 ```
+
+---
+
+## 🔧 CUDA 12 / RTX 30xx 環境での修正メモ
+
+NVIDIA RTX 3090 + CUDA 12.x 環境でセットアップする際に必要だった修正をまとめます。
+
+### セットアップ手順
+
+```bash
+# 1. 基本依存関係（--cumesh は別途インストール）
+bash setup.sh --new-env --basic --flash-attn --nvdiffrast --nvdiffrec --o-voxel --flexgemm
+
+# 2. CuMesh のビルド・インストール
+bash install_cumesh.sh
+
+# 3. transformers のアップグレード（DINOv3 対応）
+pip install --upgrade "transformers>=5.5.0"
+
+# 4. HuggingFace ログイン（DINOv3 モデルは Gated Repo）
+python -c "from huggingface_hub import login; login(token='hf_xxxx...')"
+#   → https://huggingface.co/facebook/dinov3-vitl16-pretrain-lvd1689m でアクセス申請も必要
+
+# 5. 起動
+python app.py
+```
+
+### 修正内容
+
+#### `setup.sh`
+- `--cumesh` を除去し独立スクリプト (`install_cumesh.sh`) に分離
+- `conda activate` 問題を `eval "$(conda shell.bash hook)"` で解決
+- `flash-attn` に `--no-build-isolation` を追加
+
+#### `clean_up.cu`（CuMesh CUDA 12 パッチ）
+CUDA 12 (CUB 2.x) で `cub::DeviceRadixSort::SortPairs` の decomposer overload API が変更されビルドエラーになる。`thrust::sort_by_key` + カスタム比較器に置き換えて解決。
+
+```cpp
+// 変更後
+struct int3_less {
+    __device__ bool operator()(const int3& a, const int3& b) const {
+        if (a.x != b.x) return a.x < b.x;
+        if (a.y != b.y) return a.y < b.y;
+        return a.z < b.z;
+    }
+};
+thrust::sort_by_key(thrust::device,
+    thrust::device_ptr<int3>(cu_sorted_faces),
+    thrust::device_ptr<int3>(cu_sorted_faces + F),
+    thrust::device_ptr<int>(cu_sorted_face_indices),
+    int3_less());
+```
+
+#### `trellis2/modules/image_feature_extractor.py`
+`DINOv3ViTModel` の内部構造が `self.model.model.layer` にネストされているため修正:
+
+```python
+# 変更前
+for i, layer_module in enumerate(self.model.layer):
+# 変更後
+for i, layer_module in enumerate(self.model.model.layer):
+```
+
+#### `app.py`
+外部からアクセスできるよう `server_name="0.0.0.0"` を追加:
+
+```python
+demo.launch(css=css, head=head, server_name="0.0.0.0")
+```
+
+#### `o-voxel/pyproject.toml`
+未パッチの CuMesh が自動インストールされないよう依存を削除:
+```
+"cumesh @ git+https://github.com/JeffreyXiang/CuMesh.git"  ← 削除
+```
