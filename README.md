@@ -365,9 +365,16 @@ bash install_cumesh.sh
 # 3. transformers のアップグレード（DINOv3 対応）
 pip install --upgrade "transformers>=5.5.0"
 
-# 4. HuggingFace ログイン（DINOv3 モデルは Gated Repo）
+# 4. HuggingFace ログイン（以下の2モデルは Gated Repo のためアクセス申請が必要）
+#
+#   ① https://huggingface.co/microsoft/TRELLIS.2-4B
+#      → 「Agree and access repository」をクリックしてアクセス申請
+#
+#   ② https://huggingface.co/facebook/dinov3-vitl16-pretrain-lvd1689m
+#      → 「Agree and access repository」をクリックしてアクセス申請
+#
+#   申請後、以下でログイン（hf_xxxx... は https://huggingface.co/settings/tokens で発行）
 python -c "from huggingface_hub import login; login(token='hf_xxxx...')"
-#   → https://huggingface.co/facebook/dinov3-vitl16-pretrain-lvd1689m でアクセス申請も必要
 
 # 5. 起動
 python app.py
