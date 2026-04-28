@@ -337,6 +337,20 @@ If you find this model useful for your research, please cite our work:
 
 ## 🔧 CUDA 12 / RTX 30xx 環境での修正メモ
 
+### 動作確認済み環境
+
+| 項目 | バージョン |
+|------|-----------|
+| **CPU** | Intel Core i9-12900K |
+| **RAM** | 128 GB |
+| **GPU** | NVIDIA GeForce RTX 3090 (24 GB) |
+| **OS** | Ubuntu Core 24 |
+| **CUDA Driver** | 575.57.08 (CUDA 12.9) |
+| **Anaconda** | conda 25.5.1 |
+| **Python** | 3.13 (anaconda3 base) |
+| **PyTorch** | 2.6.0+cu124 |
+| **transformers** | 5.5.0+ |
+
 NVIDIA RTX 3090 + CUDA 12.x 環境でセットアップする際に必要だった修正をまとめます。
 
 ### セットアップ手順
