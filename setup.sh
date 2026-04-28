@@ -1,5 +1,5 @@
 # Read Arguments
-TEMP=`getopt -o h --long help,new-env,basic,flash-attn,cumesh,o-voxel,flexgemm,nvdiffrast,nvdiffrec -n 'setup.sh' -- "$@"`
+TEMP=`getopt -o h --long help,new-env,basic,flash-attn,o-voxel,flexgemm,nvdiffrast,nvdiffrec -n 'setup.sh' -- "$@"`
 
 eval set -- "$TEMP"
 
@@ -7,7 +7,6 @@ HELP=false
 NEW_ENV=false
 BASIC=false
 FLASHATTN=false
-CUMESH=false
 OVOXEL=false
 FLEXGEMM=false
 NVDIFFRAST=false
@@ -25,7 +24,6 @@ while true ; do
         --new-env) NEW_ENV=true ; shift ;;
         --basic) BASIC=true ; shift ;;
         --flash-attn) FLASHATTN=true ; shift ;;
-        --cumesh) CUMESH=true ; shift ;;
         --o-voxel) OVOXEL=true ; shift ;;
         --flexgemm) FLEXGEMM=true ; shift ;;
         --nvdiffrast) NVDIFFRAST=true ; shift ;;
@@ -47,33 +45,46 @@ if [ "$HELP" = true ] ; then
     echo "  --new-env               Create a new conda environment"
     echo "  --basic                 Install basic dependencies"
     echo "  --flash-attn            Install flash-attention"
-    echo "  --cumesh                Install cumesh"
     echo "  --o-voxel               Install o-voxel"
     echo "  --flexgemm              Install flexgemm"
     echo "  --nvdiffrast            Install nvdiffrast"
     echo "  --nvdiffrec             Install nvdiffrec"
+    echo ""
+    echo "Note: CuMesh must be installed separately using install_cumesh_build.sh"
     return
 fi
 
 # Get system information
 WORKDIR=$(pwd)
-if command -v nvidia-smi > /dev/null; then
+# Try multiple paths for nvidia-smi and check CUDA availability
+PLATFORM=""
+if command -v nvidia-smi > /dev/null 2>&1; then
     PLATFORM="cuda"
-elif command -v rocminfo > /dev/null; then
+elif /usr/bin/nvidia-smi > /dev/null 2>&1; then
+    PLATFORM="cuda"
+elif [ -f /usr/bin/nvidia-smi ]; then
+    PLATFORM="cuda"
+elif command -v rocminfo > /dev/null 2>&1; then
     PLATFORM="hip"
-else
+elif [ -d /opt/rocm ]; then
+    PLATFORM="hip"
+fi
+
+if [ -z "$PLATFORM" ]; then
     echo "Error: No supported GPU found"
     exit 1
 fi
 
 if [ "$NEW_ENV" = true ] ; then
-    conda create -n trellis2 python=3.10
-    conda activate trellis2
+    conda create -n trellis2 python=3.10 -y
     if [ "$PLATFORM" = "cuda" ] ; then
-        pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu124
+        conda run -n trellis2 pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu124
     elif [ "$PLATFORM" = "hip" ] ; then
-        pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/rocm6.2.4
+        conda run -n trellis2 pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/rocm6.2.4
     fi
+    CONDA_RUN="conda run -n trellis2"
+else
+    CONDA_RUN=""
 fi
 
 if [ "$BASIC" = true ] ; then
@@ -86,7 +97,7 @@ fi
 
 if [ "$FLASHATTN" = true ] ; then
     if [ "$PLATFORM" = "cuda" ] ; then
-        pip install flash-attn==2.7.3
+        pip install flash-attn==2.7.3 --no-build-isolation
     elif [ "$PLATFORM" = "hip" ] ; then
         echo "[FLASHATTN] Prebuilt binaries not found. Building from source..."
         mkdir -p /tmp/extensions
@@ -120,14 +131,9 @@ if [ "$NVDIFFREC" = true ] ; then
     fi
 fi
 
-if [ "$CUMESH" = true ] ; then
-    mkdir -p /tmp/extensions
-    git clone https://github.com/JeffreyXiang/CuMesh.git /tmp/extensions/CuMesh --recursive
-    pip install /tmp/extensions/CuMesh --no-build-isolation
-fi
-
 if [ "$FLEXGEMM" = true ] ; then
     mkdir -p /tmp/extensions
+    rm -rf /tmp/extensions/FlexGEMM
     git clone https://github.com/JeffreyXiang/FlexGEMM.git /tmp/extensions/FlexGEMM --recursive
     pip install /tmp/extensions/FlexGEMM --no-build-isolation
 fi
